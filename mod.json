@@ -1,11 +1,10 @@
 {
   "geode": "4.0.0",
-  "version": "v1.1.0",
-  "id": "woopet.fucker",
-  "name": "fish food math fucker",
-  "developer": "woopet",
-  "description": "Best-effort hooks for swapping sine/cosine and overriding common runtime pi calculations.",
-  "repository": "https://github.com/your-name/tea-mathlab",
+  "version": "v1.2.0",
+  "id": "woopet.math-fucker",
+  "name": "Woopet Math Fucker",
+  "developer": "Woopet",
+  "description": "Best-effort runtime hooks to swap sine/cosine and override common runtime pi calculations.",
   "settings": {
     "global-math-hooks": {
       "name": "Enable global math hooks",
@@ -21,7 +20,7 @@
     },
     "custom-pi": {
       "name": "Custom pi",
-      "description": "Value used for common runtime pi-producing calls such as acos(-1) and atan2(±0, negative x).",
+      "description": "Value used for common runtime pi-producing calls such as acos(-1) and atan2(\u00b10, negative x).",
       "type": "float",
       "default": 3.141592653589793
     }
