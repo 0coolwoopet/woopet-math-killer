@@ -20,9 +20,15 @@
     },
     "custom-pi": {
       "name": "Custom pi",
-      "description": "Value used for common runtime pi-producing calls such as acos(-1) and atan2(\u00b10, negative x).",
+      "description": "Value used for common runtime pi-producing calls such as acos(-1) and atan2(±0, negative x).",
       "type": "float",
       "default": 3.141592653589793
     }
+  },
+  "gd": {
+    "win": "*",
+    "mac": "*",
+    "android": "*",
+    "ios": "*"
   }
 }
