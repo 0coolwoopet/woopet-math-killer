@@ -25,34 +25,23 @@ jobs:
 
     - name: Build Mod
       uses: geode-sdk/build-geode-mod@main
-      id: build
       with:
-        # Crucial: Tells the action you intend to merge files later
         combine: true
         target: ${{ matrix.config.target }}
 
-    - name: Upload Uncombined Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: geode-build-${{ matrix.config.name }}
-        path: ${{ steps.build.outputs.build-output }}
-
-  # A separate job to stitch all the platform builds together
+  # The separate job to stitch all the platform builds together
   combine:
-    name: Combine Builds
+    name: Package builds
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-    - name: Download All Artifacts
-      uses: actions/download-artifact@v4
-
     - name: Combine Artifacts
       uses: geode-sdk/build-geode-mod/combine@main
-      id: combine
+      id: build
 
     - name: Upload Final Mod
       uses: actions/upload-artifact@v4
       with:
         name: final-geode-mod
-        path: ${{ steps.combine.outputs.output }}
+        path: ${{ steps.build.outputs.build-output }}
