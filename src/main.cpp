@@ -3,28 +3,28 @@
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/TextInput.hpp>
 #include <cmath>
-#include <dlfcn.h>
+#include <cstdio>
+#include <atomic>
 #include <string>
+
+#ifndef GEODE_IS_WINDOWS
+    #include <dlfcn.h>
+#endif
 
 using namespace geode::prelude;
 
 namespace woopet::mathfucker {
     static thread_local bool g_bypassOverrides = false;
 
-    bool hooksEnabled() {
-        return Mod::get()->getSettingValue<bool>("global-math-hooks");
-    }
-    bool swapSinCos() {
-        return Mod::get()->getSettingValue<bool>("swap-sin-cos");
-    }
-    double pi() {
-        return static_cast<double>(Mod::get()->getSettingValue<float>("custom-pi"));
-    }
+    // Cached settings: the detours run on every sin/cos call, so they must not
+    // touch Mod::getSettingValue (slow, and not safe from every thread).
+    static std::atomic<bool> g_hooksEnabled{true};
+    static std::atomic<bool> g_swapSinCos{false};
+    static std::atomic<double> g_pi{3.141592653589793};
 
-    // Helpers also used by this mod. Global hooks below cover calls routed
-    // through hooked libm symbols; compile-time constants/inlined math remain unchanged.
-    double sin(double x) { return swapSinCos() ? std::cos(x) : std::sin(x); }
-    double cos(double x) { return swapSinCos() ? std::sin(x) : std::cos(x); }
+    bool hooksEnabled() { return g_hooksEnabled.load(std::memory_order_relaxed); }
+    bool swapSinCos() { return g_swapSinCos.load(std::memory_order_relaxed); }
+    double pi() { return g_pi.load(std::memory_order_relaxed); }
 
     struct BypassGuard {
         bool previous;
@@ -81,6 +81,7 @@ namespace woopet::mathfucker {
         return ::atan2f(y, x);
     }
 
+#ifndef GEODE_IS_WINDOWS
     template <class Detour>
     void installMathHook(char const* symbol, Detour detour) {
         auto address = dlsym(RTLD_DEFAULT, symbol);
@@ -90,20 +91,22 @@ namespace woopet::mathfucker {
         }
         auto result = Mod::get()->hook(
             address,
-            detour,
+            reinterpret_cast<void*>(detour),
             std::string("WoopetMathFucker::") + symbol,
             tulip::hook::TulipConvention::Cdecl
         );
-        if (!result) {
+        if (result.isErr()) {
             log::warn("Woopet Math Fucker: hook installation failed; skipping that hook");
             return;
         }
         log::info("Woopet Math Fucker: installed a math hook");
     }
+#endif
 
-    class WoopetMathFuckerPopup final : public Popup<> {
+    class WoopetMathFuckerPopup final : public Popup {
     protected:
-        bool setup() override {
+        bool init() {
+            if (!Popup::init(290.f, 220.f, "GJ_square01.png")) return false;
             this->setTitle("Woopet Math Fucker");
             auto* hint = CCLabelBMFont::create("Game math overrides", "bigFont.fnt");
             hint->setScale(0.42f);
@@ -135,7 +138,9 @@ namespace woopet::mathfucker {
             piLabel->setPosition({24.f, m_size.height - 131.f});
             m_mainLayer->addChild(piLabel);
             m_piInput = TextInput::create(130.f, "Enter a number", "bigFont.fnt");
-            m_piInput->setString(std::to_string(pi()), false);
+            char piText[40];
+            std::snprintf(piText, sizeof(piText), "%.15g", pi());
+            m_piInput->setString(piText, false);
             m_piInput->setFilter("0123456789.-");
             m_piInput->setPosition({m_size.width - 78.f, m_size.height - 131.f});
             m_mainLayer->addChild(m_piInput);
@@ -171,7 +176,7 @@ namespace woopet::mathfucker {
                     FLAlertLayer::create("Woopet Math Fucker", "Enter a finite number greater than 0 and at most 1e12.", "OK")->show();
                     return;
                 }
-                Mod::get()->setSettingValue("custom-pi", static_cast<float>(value));
+                Mod::get()->setSettingValue("custom-pi", value);
                 FLAlertLayer::create("Woopet Math Fucker", "Custom pi saved.", "OK")->show();
             } catch (...) {
                 FLAlertLayer::create("Woopet Math Fucker", "That is not a valid number.", "OK")->show();
@@ -180,7 +185,7 @@ namespace woopet::mathfucker {
     public:
         static WoopetMathFuckerPopup* create() {
             auto* ret = new WoopetMathFuckerPopup();
-            if (ret->init(290.f, 220.f, "GJ_square01.png")) { ret->autorelease(); return ret; }
+            if (ret->init()) { ret->autorelease(); return ret; }
             delete ret; return nullptr;
         }
     private:
@@ -190,6 +195,16 @@ namespace woopet::mathfucker {
 
 $on_mod(Loaded) {
     using namespace woopet::mathfucker;
+
+    g_hooksEnabled = Mod::get()->getSettingValue<bool>("global-math-hooks");
+    g_swapSinCos = Mod::get()->getSettingValue<bool>("swap-sin-cos");
+    g_pi = Mod::get()->getSettingValue<double>("custom-pi");
+
+    listenForSettingChanges<bool>("global-math-hooks", [](bool v) { g_hooksEnabled = v; });
+    listenForSettingChanges<bool>("swap-sin-cos", [](bool v) { g_swapSinCos = v; });
+    listenForSettingChanges<double>("custom-pi", [](double v) { g_pi = v; });
+
+#ifndef GEODE_IS_WINDOWS
     installMathHook("sin", &detourSin);
     installMathHook("cos", &detourCos);
     installMathHook("sinf", &detourSinf);
@@ -198,6 +213,9 @@ $on_mod(Loaded) {
     installMathHook("acosf", &detourAcosf);
     installMathHook("atan2", &detourAtan2);
     installMathHook("atan2f", &detourAtan2f);
+#else
+    log::warn("Woopet Math Fucker: math hooks are not supported on Windows; only the UI is active");
+#endif
 }
 
 class $modify(WoopetMathFuckerOptionsLayer, OptionsLayer) {
