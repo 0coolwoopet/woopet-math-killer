@@ -91,7 +91,7 @@ namespace woopet::mathfucker {
         }
         auto result = Mod::get()->hook(
             address,
-            reinterpret_cast<void*>(detour),
+            detour,
             std::string("WoopetMathFucker::") + symbol,
             tulip::hook::TulipConvention::Cdecl
         );
@@ -219,8 +219,8 @@ $on_mod(Loaded) {
 }
 
 class $modify(WoopetMathFuckerOptionsLayer, OptionsLayer) {
-    bool init() {
-        if (!OptionsLayer::init()) return false;
+    void customSetup() {
+        OptionsLayer::customSetup();
         auto* button = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Woopet Math Fucker", "goldFont.fnt", "GJ_button_04.png", 0.75f),
             this, menu_selector(WoopetMathFuckerOptionsLayer::onOpenWoopetMathFucker));
@@ -229,7 +229,6 @@ class $modify(WoopetMathFuckerOptionsLayer, OptionsLayer) {
         auto win = CCDirector::get()->getWinSize();
         menu->setPosition({win.width / 2.f, 34.f});
         this->addChild(menu);
-        return true;
     }
     void onOpenWoopetMathFucker(CCObject*) { woopet::mathfucker::WoopetMathFuckerPopup::create()->show(); }
 };
