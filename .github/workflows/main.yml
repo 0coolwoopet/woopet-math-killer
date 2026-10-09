@@ -1,10 +1,6 @@
-name: Build Geode Mod
+name: Build Multi-Platform Geode Mod
 
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - "**"
+on: [push, pull_request]
 
 jobs:
   build:
@@ -14,44 +10,49 @@ jobs:
         config:
         - name: Windows
           os: windows-latest
-
         - name: macOS
           os: macos-latest
-
-        - name: iOS
-          os: macos-latest
-          target: iOS
-
-        - name: Android32
-          os: ubuntu-latest
-          target: Android32
-
-        - name: Android64
+        - name: Android
           os: ubuntu-latest
           target: Android64
 
-    name: ${{ matrix.config.name }}
+    name: Build ${{ matrix.config.name }}
     runs-on: ${{ matrix.config.os }}
 
     steps:
-      - uses: actions/checkout@v7
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Build the mod
-        uses: geode-sdk/build-geode-mod@main
-        with:
-          combine: true
-          target: ${{ matrix.config.target }}
+    - name: Build Mod
+      uses: geode-sdk/build-geode-mod@main
+      id: build
+      with:
+        # Crucial: Tells the action you intend to merge files later
+        combine: true
+        target: ${{ matrix.config.target }}
 
-  package:
-    name: Package builds
+    - name: Upload Uncombined Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: geode-build-${{ matrix.config.name }}
+        path: ${{ steps.build.outputs.build-output }}
+
+  # A separate job to stitch all the platform builds together
+  combine:
+    name: Combine Builds
+    needs: build
     runs-on: ubuntu-latest
-    needs: ['build']
 
     steps:
-      - uses: geode-sdk/build-geode-mod/combine@main
-        id: build
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
 
-      - uses: actions/upload-artifact@v7
-        with:
-          name: Build Output
-          path: ${{ steps.build.outputs.build-output }}
+    - name: Combine Artifacts
+      uses: geode-sdk/build-geode-mod/combine@main
+      id: combine
+
+    - name: Upload Final Mod
+      uses: actions/upload-artifact@v4
+      with:
+        name: final-geode-mod
+        path: ${{ steps.combine.outputs.output }}
