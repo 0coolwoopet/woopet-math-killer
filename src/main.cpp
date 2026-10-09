@@ -85,7 +85,7 @@ namespace woopet::mathfucker {
     void installMathHook(char const* symbol, Detour detour) {
         auto address = dlsym(RTLD_DEFAULT, symbol);
         if (!address) {
-            log::warn("Woopet Math Fucker: math symbol '{}' was not found; skipping hook", symbol);
+            log::warn("Woopet Math Fucker: a math symbol was not found; skipping that hook");
             return;
         }
         auto result = Mod::get()->hook(
@@ -95,10 +95,10 @@ namespace woopet::mathfucker {
             tulip::hook::TulipConvention::Cdecl
         );
         if (!result) {
-            log::warn("Woopet Math Fucker: couldn't hook '{}': {}", symbol, result.unwrapErr());
+            log::warn("Woopet Math Fucker: hook installation failed; skipping that hook");
             return;
         }
-        log::info("Woopet Math Fucker: installed math hook for {}", symbol);
+        log::info("Woopet Math Fucker: installed a math hook");
     }
 
     class WoopetMathFuckerPopup final : public Popup<> {
