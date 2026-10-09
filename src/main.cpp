@@ -8,7 +8,7 @@
 
 using namespace geode::prelude;
 
-namespace tea::mathlab {
+namespace woopet::mathfucker {
     static thread_local bool g_bypassOverrides = false;
 
     bool hooksEnabled() {
@@ -85,26 +85,26 @@ namespace tea::mathlab {
     void installMathHook(char const* symbol, Detour detour) {
         auto address = dlsym(RTLD_DEFAULT, symbol);
         if (!address) {
-            log::warn("Tea Math Lab: math symbol '{}' was not found; skipping hook", symbol);
+            log::warn("Woopet Math Fucker: math symbol '{}' was not found; skipping hook", symbol);
             return;
         }
         auto result = Mod::get()->hook(
             address,
             detour,
-            std::string("TeaMathLab::") + symbol,
+            std::string("WoopetMathFucker::") + symbol,
             tulip::hook::TulipConvention::Cdecl
         );
         if (!result) {
-            log::warn("Tea Math Lab: couldn't hook '{}': {}", symbol, result.unwrapErr());
+            log::warn("Woopet Math Fucker: couldn't hook '{}': {}", symbol, result.unwrapErr());
             return;
         }
-        log::info("Tea Math Lab: installed math hook for {}", symbol);
+        log::info("Woopet Math Fucker: installed math hook for {}", symbol);
     }
 
-    class MathLabPopup final : public Popup<> {
+    class WoopetMathFuckerPopup final : public Popup<> {
     protected:
         bool setup() override {
-            this->setTitle("Math Lab");
+            this->setTitle("Woopet Math Fucker");
             auto* hint = CCLabelBMFont::create("Game math overrides", "bigFont.fnt");
             hint->setScale(0.42f);
             hint->setPosition({m_size.width / 2.f, m_size.height - 35.f});
@@ -116,7 +116,7 @@ namespace tea::mathlab {
             m_mainLayer->addChild(globalLabel);
             auto* globalToggle = CCMenuItemSpriteExtra::create(
                 ButtonSprite::create(hooksEnabled() ? "ON" : "OFF", 60, true, "goldFont.fnt", "GJ_button_04.png", 30.f, 0.7f),
-                this, menu_selector(MathLabPopup::onToggleGlobal));
+                this, menu_selector(WoopetMathFuckerPopup::onToggleGlobal));
             globalToggle->setPosition({m_size.width - 42.f, m_size.height - 65.f});
             m_buttonMenu->addChild(globalToggle);
 
@@ -126,7 +126,7 @@ namespace tea::mathlab {
             m_mainLayer->addChild(swapLabel);
             auto* swapToggle = CCMenuItemSpriteExtra::create(
                 ButtonSprite::create(swapSinCos() ? "ON" : "OFF", 60, true, "goldFont.fnt", "GJ_button_04.png", 30.f, 0.7f),
-                this, menu_selector(MathLabPopup::onToggleSwap));
+                this, menu_selector(WoopetMathFuckerPopup::onToggleSwap));
             swapToggle->setPosition({m_size.width - 42.f, m_size.height - 98.f});
             m_buttonMenu->addChild(swapToggle);
 
@@ -142,7 +142,7 @@ namespace tea::mathlab {
 
             auto* save = CCMenuItemSpriteExtra::create(
                 ButtonSprite::create("Save", "goldFont.fnt", "GJ_button_01.png", 0.8f),
-                this, menu_selector(MathLabPopup::onSave));
+                this, menu_selector(WoopetMathFuckerPopup::onSave));
             save->setPosition({m_size.width / 2.f, 35.f});
             m_buttonMenu->addChild(save);
 
@@ -152,7 +152,7 @@ namespace tea::mathlab {
             m_mainLayer->addChild(note);
             return true;
         }
-        void reopen() { this->onClose(nullptr); MathLabPopup::create()->show(); }
+        void reopen() { this->onClose(nullptr); WoopetMathFuckerPopup::create()->show(); }
         void onToggleGlobal(CCObject*) {
             Mod::get()->setSettingValue("global-math-hooks", !hooksEnabled());
             reopen();
@@ -168,18 +168,18 @@ namespace tea::mathlab {
                 size_t used = 0;
                 double value = std::stod(raw, &used);
                 if (used != raw.size() || !std::isfinite(value) || value <= 0.0 || value > 1.0e12) {
-                    FLAlertLayer::create("Math Lab", "Enter a finite number greater than 0 and at most 1e12.", "OK")->show();
+                    FLAlertLayer::create("Woopet Math Fucker", "Enter a finite number greater than 0 and at most 1e12.", "OK")->show();
                     return;
                 }
                 Mod::get()->setSettingValue("custom-pi", static_cast<float>(value));
-                FLAlertLayer::create("Math Lab", "Custom pi saved.", "OK")->show();
+                FLAlertLayer::create("Woopet Math Fucker", "Custom pi saved.", "OK")->show();
             } catch (...) {
-                FLAlertLayer::create("Math Lab", "That is not a valid number.", "OK")->show();
+                FLAlertLayer::create("Woopet Math Fucker", "That is not a valid number.", "OK")->show();
             }
         }
     public:
-        static MathLabPopup* create() {
-            auto* ret = new MathLabPopup();
+        static WoopetMathFuckerPopup* create() {
+            auto* ret = new WoopetMathFuckerPopup();
             if (ret->init(290.f, 220.f, "GJ_square01.png")) { ret->autorelease(); return ret; }
             delete ret; return nullptr;
         }
@@ -189,7 +189,7 @@ namespace tea::mathlab {
 }
 
 $on_mod(Loaded) {
-    using namespace tea::mathlab;
+    using namespace woopet::mathfucker;
     installMathHook("sin", &detourSin);
     installMathHook("cos", &detourCos);
     installMathHook("sinf", &detourSinf);
@@ -200,18 +200,18 @@ $on_mod(Loaded) {
     installMathHook("atan2f", &detourAtan2f);
 }
 
-class $modify(TeaMathOptionsLayer, OptionsLayer) {
+class $modify(WoopetMathFuckerOptionsLayer, OptionsLayer) {
     bool init() {
         if (!OptionsLayer::init()) return false;
         auto* button = CCMenuItemSpriteExtra::create(
-            ButtonSprite::create("Math Lab", "goldFont.fnt", "GJ_button_04.png", 0.75f),
-            this, menu_selector(TeaMathOptionsLayer::onOpenMathLab));
+            ButtonSprite::create("Woopet Math Fucker", "goldFont.fnt", "GJ_button_04.png", 0.75f),
+            this, menu_selector(WoopetMathFuckerOptionsLayer::onOpenWoopetMathFucker));
         auto* menu = CCMenu::create();
-        menu->setID("tea-mathlab-menu"); menu->addChild(button);
+        menu->setID("woopet-math-fucker-menu"); menu->addChild(button);
         auto win = CCDirector::get()->getWinSize();
         menu->setPosition({win.width / 2.f, 34.f});
         this->addChild(menu);
         return true;
     }
-    void onOpenMathLab(CCObject*) { tea::mathlab::MathLabPopup::create()->show(); }
+    void onOpenWoopetMathFucker(CCObject*) { woopet::mathfucker::WoopetMathFuckerPopup::create()->show(); }
 };
