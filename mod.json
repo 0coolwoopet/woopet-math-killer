@@ -1,9 +1,9 @@
 {
   "geode": "4.0.0",
   "version": "v1.1.0",
-  "id": "tea.mathlab",
-  "name": "Tea Math Lab",
-  "developer": "Tea",
+  "id": "woopet.fucker",
+  "name": "fish food math fucker",
+  "developer": "woopet",
   "description": "Best-effort hooks for swapping sine/cosine and overriding common runtime pi calculations.",
   "repository": "https://github.com/your-name/tea-mathlab",
   "settings": {
