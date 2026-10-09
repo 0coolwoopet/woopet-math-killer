@@ -16,13 +16,11 @@
 using namespace geode::prelude;
 
 namespace woopet::mathfucker {
-    // Cached settings: the detours run on every sin/cos call, so they must not
-    // touch Mod::getSettingValue (slow, and not safe from every thread).
+
     static std::atomic<bool> g_hooksEnabled{true};
     static std::atomic<bool> g_swapSinCos{false};
     static std::atomic<double> g_pi{3.141592653589793};
-    // custom pi / real pi. Angles passed into trig are multiplied by this and
-    // angles returned from inverse trig are too, so "half a turn" == custom pi.
+
     static std::atomic<double> g_k{1.0};
     constexpr double kRealPi = 3.141592653589793238462643383279502884;
 
@@ -33,9 +31,6 @@ namespace woopet::mathfucker {
     float kf() { return static_cast<float>(kd()); }
     void setPi(double v) { g_pi = v; g_k = v / kRealPi; }
 
-    // Own sin/cos (fdlibm kernels). The sin/cos/tan/sincos detours must NOT call
-    // other hooked libm functions: calling a different hooked symbol from inside
-    // a detour is what crashed the sin/cos swap. These never touch hooked symbols.
     namespace impl {
         constexpr double pio2_1  = 1.57079632673412561417e+00;
         constexpr double pio2_1t = 6.07710050650619224932e-11;
@@ -72,7 +67,7 @@ namespace woopet::mathfucker {
                 default: s = -cr; c = sr; break;
             }
         }
-        // Scaled by custom pi, optionally swapped. Returns {sin, cos}.
+
         inline void scaled(double x, double k, bool swap, double& s, double& c) {
             sincos(x * k, s, c);
             if (swap) std::swap(s, c);
@@ -99,8 +94,7 @@ namespace woopet::mathfucker {
         double s, c; impl::scaled(static_cast<double>(x), kd(), swapSinCos(), s, c);
         return static_cast<float>(c);
     }
-    // sin and cos of the same angle are often merged by the compiler into one
-    // sincos call (hitbox / rotation math), so hook that too.
+
     void detourSincos(double x, double* s, double* c) {
         double sv, cv;
         impl::scaled(x, hooksEnabled() ? kd() : 1.0, hooksEnabled() && swapSinCos(), sv, cv);
@@ -122,8 +116,6 @@ namespace woopet::mathfucker {
         return static_cast<float>(s / c);
     }
 
-    // Inverse functions only call their own (hooked) symbol, which is the
-    // same-function re-entry Geode supports.
     double detourAcos(double x) {
         return hooksEnabled() ? ::acos(x) * kd() : ::acos(x);
     }
