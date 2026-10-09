@@ -1,0 +1,29 @@
+{
+  "geode": "4.0.0",
+  "version": "v1.1.0",
+  "id": "tea.mathlab",
+  "name": "Tea Math Lab",
+  "developer": "Tea",
+  "description": "Best-effort hooks for swapping sine/cosine and overriding common runtime pi calculations.",
+  "repository": "https://github.com/your-name/tea-mathlab",
+  "settings": {
+    "global-math-hooks": {
+      "name": "Enable global math hooks",
+      "description": "Enable best-effort hooks for runtime math symbols; may affect unrelated calculations.",
+      "type": "bool",
+      "default": true
+    },
+    "swap-sin-cos": {
+      "name": "Swap sine and cosine",
+      "description": "Swap supported runtime sin/cos calls routed through hooked symbols.",
+      "type": "bool",
+      "default": false
+    },
+    "custom-pi": {
+      "name": "Custom pi",
+      "description": "Value used for common runtime pi-producing calls such as acos(-1) and atan2(±0, negative x).",
+      "type": "float",
+      "default": 3.141592653589793
+    }
+  }
+}
