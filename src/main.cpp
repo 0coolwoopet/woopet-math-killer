@@ -21,10 +21,17 @@ namespace woopet::mathfucker {
     static std::atomic<bool> g_hooksEnabled{true};
     static std::atomic<bool> g_swapSinCos{false};
     static std::atomic<double> g_pi{3.141592653589793};
+    // custom pi / real pi. Angles passed into trig are multiplied by this and
+    // angles returned from inverse trig are too, so "half a turn" == custom pi.
+    static std::atomic<double> g_k{1.0};
+    constexpr double kRealPi = 3.141592653589793238462643383279502884;
 
     bool hooksEnabled() { return g_hooksEnabled.load(std::memory_order_relaxed); }
     bool swapSinCos() { return g_swapSinCos.load(std::memory_order_relaxed); }
     double pi() { return g_pi.load(std::memory_order_relaxed); }
+    double kd() { return g_k.load(std::memory_order_relaxed); }
+    float kf() { return static_cast<float>(kd()); }
+    void setPi(double v) { g_pi = v; g_k = v / kRealPi; }
 
     struct BypassGuard {
         bool previous;
@@ -33,52 +40,51 @@ namespace woopet::mathfucker {
     };
 
     // Geode routes calls to the original implementation when a hooked symbol
-    // is called from a detour on the same thread. The bypass flag prevents the
-    // second math function in a swap from applying the override a second time.
+    // is called from a detour on the same thread. The bypass flag also keeps the
+    // other function in a sin/cos swap (and any re-entry) from being scaled twice.
     double detourSin(double x) {
         if (!hooksEnabled() || g_bypassOverrides) return ::sin(x);
-        if (!swapSinCos()) return ::sin(x);
         BypassGuard guard;
-        return ::cos(x);
+        double a = x * kd();
+        return swapSinCos() ? ::cos(a) : ::sin(a);
     }
     double detourCos(double x) {
         if (!hooksEnabled() || g_bypassOverrides) return ::cos(x);
-        if (!swapSinCos()) return ::cos(x);
         BypassGuard guard;
-        return ::sin(x);
+        double a = x * kd();
+        return swapSinCos() ? ::sin(a) : ::cos(a);
     }
     float detourSinf(float x) {
         if (!hooksEnabled() || g_bypassOverrides) return ::sinf(x);
-        if (!swapSinCos()) return ::sinf(x);
         BypassGuard guard;
-        return ::cosf(x);
+        float a = x * kf();
+        return swapSinCos() ? ::cosf(a) : ::sinf(a);
     }
     float detourCosf(float x) {
         if (!hooksEnabled() || g_bypassOverrides) return ::cosf(x);
-        if (!swapSinCos()) return ::cosf(x);
         BypassGuard guard;
-        return ::sinf(x);
+        float a = x * kf();
+        return swapSinCos() ? ::sinf(a) : ::cosf(a);
     }
     double detourAcos(double x) {
-        if (hooksEnabled() && !g_bypassOverrides && x == -1.0) return pi();
-        return ::acos(x);
+        if (!hooksEnabled() || g_bypassOverrides) return ::acos(x);
+        BypassGuard guard;
+        return ::acos(x) * kd();
     }
     float detourAcosf(float x) {
-        if (hooksEnabled() && !g_bypassOverrides && x == -1.0f)
-            return static_cast<float>(pi());
-        return ::acosf(x);
+        if (!hooksEnabled() || g_bypassOverrides) return ::acosf(x);
+        BypassGuard guard;
+        return ::acosf(x) * kf();
     }
     double detourAtan2(double y, double x) {
-        if (hooksEnabled() && !g_bypassOverrides && x < 0.0 && y == 0.0)
-            return std::signbit(y) ? -pi() : pi();
-        return ::atan2(y, x);
+        if (!hooksEnabled() || g_bypassOverrides) return ::atan2(y, x);
+        BypassGuard guard;
+        return ::atan2(y, x) * kd();
     }
     float detourAtan2f(float y, float x) {
-        if (hooksEnabled() && !g_bypassOverrides && x < 0.0f && y == 0.0f) {
-            float value = static_cast<float>(pi());
-            return std::signbit(y) ? -value : value;
-        }
-        return ::atan2f(y, x);
+        if (!hooksEnabled() || g_bypassOverrides) return ::atan2f(y, x);
+        BypassGuard guard;
+        return ::atan2f(y, x) * kf();
     }
 
 #ifndef GEODE_IS_WINDOWS
@@ -198,11 +204,11 @@ $on_mod(Loaded) {
 
     g_hooksEnabled = Mod::get()->getSettingValue<bool>("global-math-hooks");
     g_swapSinCos = Mod::get()->getSettingValue<bool>("swap-sin-cos");
-    g_pi = Mod::get()->getSettingValue<double>("custom-pi");
+    setPi(Mod::get()->getSettingValue<double>("custom-pi"));
 
     listenForSettingChanges<bool>("global-math-hooks", [](bool v) { g_hooksEnabled = v; });
     listenForSettingChanges<bool>("swap-sin-cos", [](bool v) { g_swapSinCos = v; });
-    listenForSettingChanges<double>("custom-pi", [](double v) { g_pi = v; });
+    listenForSettingChanges<double>("custom-pi", [](double v) { if (v > 0.0) setPi(v); });
 
 #ifndef GEODE_IS_WINDOWS
     installMathHook("sin", &detourSin);
