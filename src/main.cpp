@@ -4,6 +4,7 @@
 #include <Geode/ui/TextInput.hpp>
 #include <cmath>
 #include <cstdio>
+#include <utility>
 #include <atomic>
 #include <string>
 
@@ -85,6 +86,56 @@ namespace woopet::mathfucker {
         if (!hooksEnabled() || g_bypassOverrides) return ::atan2f(y, x);
         BypassGuard guard;
         return ::atan2f(y, x) * kf();
+    }
+
+    // sin and cos of the same angle are often merged by the compiler into one
+    // sincos call (hitboxes / rotation math do this a lot), so hook that too.
+    // Implemented with sin/cos so no extra libc declaration is needed.
+    void detourSincos(double x, double* s, double* c) {
+        if (!hooksEnabled() || g_bypassOverrides) { *s = ::sin(x); *c = ::cos(x); return; }
+        BypassGuard guard;
+        double a = x * kd();
+        double sv = ::sin(a), cv = ::cos(a);
+        if (swapSinCos()) std::swap(sv, cv);
+        *s = sv; *c = cv;
+    }
+    void detourSincosf(float x, float* s, float* c) {
+        if (!hooksEnabled() || g_bypassOverrides) { *s = ::sinf(x); *c = ::cosf(x); return; }
+        BypassGuard guard;
+        float a = x * kf();
+        float sv = ::sinf(a), cv = ::cosf(a);
+        if (swapSinCos()) std::swap(sv, cv);
+        *s = sv; *c = cv;
+    }
+    double detourTan(double x) {
+        if (!hooksEnabled() || g_bypassOverrides) return ::tan(x);
+        BypassGuard guard;
+        return ::tan(x * kd());
+    }
+    float detourTanf(float x) {
+        if (!hooksEnabled() || g_bypassOverrides) return ::tanf(x);
+        BypassGuard guard;
+        return ::tanf(x * kf());
+    }
+    double detourAsin(double x) {
+        if (!hooksEnabled() || g_bypassOverrides) return ::asin(x);
+        BypassGuard guard;
+        return ::asin(x) * kd();
+    }
+    float detourAsinf(float x) {
+        if (!hooksEnabled() || g_bypassOverrides) return ::asinf(x);
+        BypassGuard guard;
+        return ::asinf(x) * kf();
+    }
+    double detourAtan(double x) {
+        if (!hooksEnabled() || g_bypassOverrides) return ::atan(x);
+        BypassGuard guard;
+        return ::atan(x) * kd();
+    }
+    float detourAtanf(float x) {
+        if (!hooksEnabled() || g_bypassOverrides) return ::atanf(x);
+        BypassGuard guard;
+        return ::atanf(x) * kf();
     }
 
 #ifndef GEODE_IS_WINDOWS
@@ -219,6 +270,14 @@ $on_mod(Loaded) {
     installMathHook("acosf", &detourAcosf);
     installMathHook("atan2", &detourAtan2);
     installMathHook("atan2f", &detourAtan2f);
+    installMathHook("sincos", &detourSincos);
+    installMathHook("sincosf", &detourSincosf);
+    installMathHook("tan", &detourTan);
+    installMathHook("tanf", &detourTanf);
+    installMathHook("asin", &detourAsin);
+    installMathHook("asinf", &detourAsinf);
+    installMathHook("atan", &detourAtan);
+    installMathHook("atanf", &detourAtanf);
 #else
     log::warn("Woopet Math Fucker: math hooks are not supported on Windows; only the UI is active");
 #endif
