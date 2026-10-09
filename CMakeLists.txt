@@ -12,9 +12,6 @@ endif()
 
 project(WoopetMathFucker VERSION 1.2.0)
 
-# The Geode build action installs the SDK and exports GEODE_SDK.
-# Geode projects should add that SDK as a subdirectory instead of using
-# find_package(Geode), which cannot find GeodeConfig.cmake in this setup.
 if (NOT DEFINED ENV{GEODE_SDK})
     message(FATAL_ERROR "Unable to find Geode SDK! Please set GEODE_SDK to your Geode SDK directory, or build with geode-sdk/build-geode-mod.")
 endif()
