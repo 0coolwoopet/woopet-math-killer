@@ -4,6 +4,7 @@
 #include <Geode/ui/TextInput.hpp>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <utility>
 #include <atomic>
 #include <string>
@@ -15,8 +16,6 @@
 using namespace geode::prelude;
 
 namespace woopet::mathfucker {
-    static thread_local bool g_bypassOverrides = false;
-
     // Cached settings: the detours run on every sin/cos call, so they must not
     // touch Mod::getSettingValue (slow, and not safe from every thread).
     static std::atomic<bool> g_hooksEnabled{true};
@@ -34,108 +33,120 @@ namespace woopet::mathfucker {
     float kf() { return static_cast<float>(kd()); }
     void setPi(double v) { g_pi = v; g_k = v / kRealPi; }
 
-    struct BypassGuard {
-        bool previous;
-        BypassGuard() : previous(g_bypassOverrides) { g_bypassOverrides = true; }
-        ~BypassGuard() { g_bypassOverrides = previous; }
-    };
+    // Own sin/cos (fdlibm kernels). The sin/cos/tan/sincos detours must NOT call
+    // other hooked libm functions: calling a different hooked symbol from inside
+    // a detour is what crashed the sin/cos swap. These never touch hooked symbols.
+    namespace impl {
+        constexpr double pio2_1  = 1.57079632673412561417e+00;
+        constexpr double pio2_1t = 6.07710050650619224932e-11;
+        constexpr double invpio2 = 6.36619772367581382433e-01;
 
-    // Geode routes calls to the original implementation when a hooked symbol
-    // is called from a detour on the same thread. The bypass flag also keeps the
-    // other function in a sin/cos swap (and any re-entry) from being scaled twice.
+        inline double kernelSin(double x) {
+            double z = x * x;
+            double r = 8.33333333332248946124e-03 + z * (-1.98412698298579493134e-04 +
+                       z * (2.75573137070700676789e-06 + z * (-2.50507602534068634195e-08 +
+                       z * 1.58969099521155010221e-10)));
+            return x + x * z * (-1.66666666666666324348e-01 + z * r);
+        }
+        inline double kernelCos(double x) {
+            double z = x * x;
+            double r = 4.16666666666666019037e-02 + z * (-1.38888888888741095749e-03 +
+                       z * (2.48015872894767294178e-05 + z * (-2.75573143513906633035e-07 +
+                       z * (2.08757232129817482790e-09 + z * -1.13596475577881948265e-11))));
+            return 1.0 - 0.5 * z + z * z * r;
+        }
+        inline void sincos(double x, double& s, double& c) {
+            if (!std::isfinite(x)) {
+                s = c = std::numeric_limits<double>::quiet_NaN();
+                return;
+            }
+            if (std::fabs(x) > 1.0e5) x = std::fmod(x, 2.0 * kRealPi);
+            double nf = std::nearbyint(x * invpio2);
+            long long n = static_cast<long long>(nf);
+            double r = (x - nf * pio2_1) - nf * pio2_1t;
+            double sr = kernelSin(r), cr = kernelCos(r);
+            switch (n & 3) {
+                case 0: s = sr;  c = cr;  break;
+                case 1: s = cr;  c = -sr; break;
+                case 2: s = -sr; c = -cr; break;
+                default: s = -cr; c = sr; break;
+            }
+        }
+        // Scaled by custom pi, optionally swapped. Returns {sin, cos}.
+        inline void scaled(double x, double k, bool swap, double& s, double& c) {
+            sincos(x * k, s, c);
+            if (swap) std::swap(s, c);
+        }
+    }
+
     double detourSin(double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::sin(x);
-        BypassGuard guard;
-        double a = x * kd();
-        return swapSinCos() ? ::cos(a) : ::sin(a);
+        if (!hooksEnabled()) return ::sin(x);
+        double s, c; impl::scaled(x, kd(), swapSinCos(), s, c);
+        return s;
     }
     double detourCos(double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::cos(x);
-        BypassGuard guard;
-        double a = x * kd();
-        return swapSinCos() ? ::sin(a) : ::cos(a);
+        if (!hooksEnabled()) return ::cos(x);
+        double s, c; impl::scaled(x, kd(), swapSinCos(), s, c);
+        return c;
     }
     float detourSinf(float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::sinf(x);
-        BypassGuard guard;
-        float a = x * kf();
-        return swapSinCos() ? ::cosf(a) : ::sinf(a);
+        if (!hooksEnabled()) return ::sinf(x);
+        double s, c; impl::scaled(static_cast<double>(x), kd(), swapSinCos(), s, c);
+        return static_cast<float>(s);
     }
     float detourCosf(float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::cosf(x);
-        BypassGuard guard;
-        float a = x * kf();
-        return swapSinCos() ? ::sinf(a) : ::cosf(a);
+        if (!hooksEnabled()) return ::cosf(x);
+        double s, c; impl::scaled(static_cast<double>(x), kd(), swapSinCos(), s, c);
+        return static_cast<float>(c);
     }
-    double detourAcos(double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::acos(x);
-        BypassGuard guard;
-        return ::acos(x) * kd();
-    }
-    float detourAcosf(float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::acosf(x);
-        BypassGuard guard;
-        return ::acosf(x) * kf();
-    }
-    double detourAtan2(double y, double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::atan2(y, x);
-        BypassGuard guard;
-        return ::atan2(y, x) * kd();
-    }
-    float detourAtan2f(float y, float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::atan2f(y, x);
-        BypassGuard guard;
-        return ::atan2f(y, x) * kf();
-    }
-
     // sin and cos of the same angle are often merged by the compiler into one
-    // sincos call (hitboxes / rotation math do this a lot), so hook that too.
-    // Implemented with sin/cos so no extra libc declaration is needed.
+    // sincos call (hitbox / rotation math), so hook that too.
     void detourSincos(double x, double* s, double* c) {
-        if (!hooksEnabled() || g_bypassOverrides) { *s = ::sin(x); *c = ::cos(x); return; }
-        BypassGuard guard;
-        double a = x * kd();
-        double sv = ::sin(a), cv = ::cos(a);
-        if (swapSinCos()) std::swap(sv, cv);
+        double sv, cv;
+        impl::scaled(x, hooksEnabled() ? kd() : 1.0, hooksEnabled() && swapSinCos(), sv, cv);
         *s = sv; *c = cv;
     }
     void detourSincosf(float x, float* s, float* c) {
-        if (!hooksEnabled() || g_bypassOverrides) { *s = ::sinf(x); *c = ::cosf(x); return; }
-        BypassGuard guard;
-        float a = x * kf();
-        float sv = ::sinf(a), cv = ::cosf(a);
-        if (swapSinCos()) std::swap(sv, cv);
-        *s = sv; *c = cv;
+        double sv, cv;
+        impl::scaled(static_cast<double>(x), hooksEnabled() ? kd() : 1.0, hooksEnabled() && swapSinCos(), sv, cv);
+        *s = static_cast<float>(sv); *c = static_cast<float>(cv);
     }
     double detourTan(double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::tan(x);
-        BypassGuard guard;
-        return ::tan(x * kd());
+        if (!hooksEnabled()) return ::tan(x);
+        double s, c; impl::sincos(x * kd(), s, c);
+        return s / c;
     }
     float detourTanf(float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::tanf(x);
-        BypassGuard guard;
-        return ::tanf(x * kf());
+        if (!hooksEnabled()) return ::tanf(x);
+        double s, c; impl::sincos(static_cast<double>(x) * kd(), s, c);
+        return static_cast<float>(s / c);
+    }
+
+    // Inverse functions only call their own (hooked) symbol, which is the
+    // same-function re-entry Geode supports.
+    double detourAcos(double x) {
+        return hooksEnabled() ? ::acos(x) * kd() : ::acos(x);
+    }
+    float detourAcosf(float x) {
+        return hooksEnabled() ? ::acosf(x) * kf() : ::acosf(x);
     }
     double detourAsin(double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::asin(x);
-        BypassGuard guard;
-        return ::asin(x) * kd();
+        return hooksEnabled() ? ::asin(x) * kd() : ::asin(x);
     }
     float detourAsinf(float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::asinf(x);
-        BypassGuard guard;
-        return ::asinf(x) * kf();
+        return hooksEnabled() ? ::asinf(x) * kf() : ::asinf(x);
     }
     double detourAtan(double x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::atan(x);
-        BypassGuard guard;
-        return ::atan(x) * kd();
+        return hooksEnabled() ? ::atan(x) * kd() : ::atan(x);
     }
     float detourAtanf(float x) {
-        if (!hooksEnabled() || g_bypassOverrides) return ::atanf(x);
-        BypassGuard guard;
-        return ::atanf(x) * kf();
+        return hooksEnabled() ? ::atanf(x) * kf() : ::atanf(x);
+    }
+    double detourAtan2(double y, double x) {
+        return hooksEnabled() ? ::atan2(y, x) * kd() : ::atan2(y, x);
+    }
+    float detourAtan2f(float y, float x) {
+        return hooksEnabled() ? ::atan2f(y, x) * kf() : ::atan2f(y, x);
     }
 
 #ifndef GEODE_IS_WINDOWS
@@ -205,8 +216,14 @@ namespace woopet::mathfucker {
             auto* save = CCMenuItemSpriteExtra::create(
                 ButtonSprite::create("Save", "goldFont.fnt", "GJ_button_01.png", 0.8f),
                 this, menu_selector(WoopetMathFuckerPopup::onSave));
-            save->setPosition({m_size.width / 2.f, 35.f});
+            save->setPosition({m_size.width / 2.f - 50.f, 35.f});
             m_buttonMenu->addChild(save);
+
+            auto* reset = CCMenuItemSpriteExtra::create(
+                ButtonSprite::create("Reset", "goldFont.fnt", "GJ_button_06.png", 0.8f),
+                this, menu_selector(WoopetMathFuckerPopup::onResetPi));
+            reset->setPosition({m_size.width / 2.f + 50.f, 35.f});
+            m_buttonMenu->addChild(reset);
 
             auto* note = CCLabelBMFont::create("Best effort: not every math operation is hookable.", "bigFont.fnt");
             note->setScale(0.27f); note->setOpacity(190);
@@ -222,6 +239,15 @@ namespace woopet::mathfucker {
         void onToggleSwap(CCObject*) {
             Mod::get()->setSettingValue("swap-sin-cos", !swapSinCos());
             reopen();
+        }
+        void onResetPi(CCObject*) {
+            Mod::get()->setSettingValue("custom-pi", kRealPi);
+            if (m_piInput) {
+                char piText[40];
+                std::snprintf(piText, sizeof(piText), "%.15g", kRealPi);
+                m_piInput->setString(piText, false);
+            }
+            FLAlertLayer::create("Woopet Math Fucker", "Pi reset to default.", "OK")->show();
         }
         void onSave(CCObject*) {
             if (!m_piInput) return;
