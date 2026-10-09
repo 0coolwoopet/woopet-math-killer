@@ -10,7 +10,7 @@ else()
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
 endif()
 
-project(woopet math killer)
+project(woopetmathkiller VERSION 2.0.0)
 
 if (NOT DEFINED ENV{GEODE_SDK})
     message(FATAL_ERROR "Unable to find Geode SDK! Please set GEODE_SDK to your Geode SDK directory, or build with geode-sdk/build-geode-mod.")
