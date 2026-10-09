@@ -4,7 +4,7 @@
   "id": "woopet.math-fucker",
   "name": "Woopet Math Fucker",
   "developer": "Woopet",
-  "description": "Best-effort runtime hooks to swap sine/cosine and override common runtime pi calculations.",
+  "description": "funny mod that breaks math \n (look in settings of gd)",
   "settings": {
     "global-math-hooks": {
       "name": "Enable global math hooks",
